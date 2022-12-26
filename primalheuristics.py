@@ -92,9 +92,42 @@ class FeasibilityPump():
         return self.x_pump, self.obj.getValue(), self.obj_distance.getValue(), cpu_time, False
                         
 class LocalBranch():
-    def __init__(self) -> None:
-        pass
+    def __init__(self, mip_model, feas_solution) -> None:
+        self.mip_model = mip_model
+        self.vtype = [v.VType for v in self.mip_model.getVars()]
+        self.bin_var = [i for i in range(len(self.vtype)) if self.vtype[i] == 'B']
+        self.n_bin = len(self.bin_var)
+        self.lp_model = self.mip_model.relax()
+        self.eps = 10**(-6)
+        self.feas_solution = feas_solution
+        self.model_sense = self.mip_model.ModelSense
+    
+    def add_constrs_local(self, feas_solution, r):
+        v = self.mip_model.getVars()
+        for idx in self.bin_var:
+            self.mip_model.addConstr(v[idx]*(1 - feas_solution[idx])+ (1 - v[idx])*feas_solution[idx] <= r)
+    
+    def run(self, r, timelimit):
+        self.add_constrs_local(self.feas_solution, r)
+        self.mip_model.Params.TIME_LIMIT = timelimit
+        ts = datetime.datetime.now()
+        self.mip_model.optimize()
+        cpu_time = (datetime.datetime.now() - ts).seconds
+        return self.mip_model.ObjVal, cpu_time
 
 class LVS():
-    def __init__(self) -> None:
+    def __init__(self, mip_model) -> None:
+        self.mip_model = mip_model
+        self.vtype = [v.VType for v in self.mip_model.getVars()]
+        self.int_var = [i for i in range(len(self.vtype)) if self.vtype[i] == 'B']
+        self.n_int = len(self.bin_var)
+        self.lp_model = self.mip_model.relax()
+        self.eps = 10**(-6)
+        self.model_sense = self.mip_model.ModelSense
+    
+    def get_optim_var(self):
+        return random.choice(self.int_var, 1)
+    
+    def get_neighood(self):
         pass
+
