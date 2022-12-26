@@ -4,7 +4,7 @@ from readmodel import ModelData
 from postdata import PostResults
 from tqdm import tqdm
 
-n_start, n_end = 0, 50
+n_start, n_end = 0, 100
 model_data = ModelData()
 mip_model, read_file = model_data.load(n_start = n_start, n_end = n_end)
 pump_results, local_branch_results = [], []

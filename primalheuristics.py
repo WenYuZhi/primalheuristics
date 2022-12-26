@@ -104,8 +104,7 @@ class LocalBranch():
     
     def add_constrs_local(self, feas_solution, r):
         v = self.mip_model.getVars()
-        for idx in self.bin_var:
-            self.mip_model.addConstr(v[idx]*(1 - feas_solution[idx])+ (1 - v[idx])*feas_solution[idx] <= r)
+        self.mip_model.addConstr(gp.quicksum(v[idx]*(1 - feas_solution[idx])+ (1 - v[idx])*feas_solution[idx] for idx in self.bin_var) <= r)
     
     def run(self, r, timelimit):
         self.add_constrs_local(self.feas_solution, r)
