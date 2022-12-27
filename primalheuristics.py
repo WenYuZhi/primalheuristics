@@ -1,9 +1,12 @@
 import gurobipy as gp
 from gurobipy import GRB
 from tqdm import tqdm
+from readmodel import ModelData
+from scipy.sparse import coo_matrix
 import math
 import datetime
 import random
+import numpy as np
 
 class FeasibilityPump():
     def __init__(self, mip_model) -> None:
@@ -78,7 +81,8 @@ class FeasibilityPump():
                 print("Solved in {} iterations and {} seconds".format(self.iter, cpu_time))
                 print("objective function: {}".format(self.obj.getValue()))
                 return self.x_pump, self.obj.getValue(), self.obj_distance.getValue(), cpu_time, True
-            self.x_int = self._round(self.x_pump)
+            # self.x_int = self._round(self.x_pump)
+            self.x_int = self._random_round(self.x_pump)
 
             if self.iter >= 1:
                 if self.x_int == self.x_int_last:
@@ -115,18 +119,60 @@ class LocalBranch():
         return self.mip_model.ObjVal, cpu_time
 
 class LVS():
-    def __init__(self, mip_model) -> None:
+    def __init__(self, mip_model, feas_solution) -> None:
         self.mip_model = mip_model
         self.vtype = [v.VType for v in self.mip_model.getVars()]
-        self.int_var = [i for i in range(len(self.vtype)) if self.vtype[i] == 'B']
-        self.n_int = len(self.bin_var)
+        self.int_var = [i for i in range(len(self.vtype)) if self.vtype[i] == 'I' or self.vtype[i] == 'B']
+        self.n_int = len(self.int_var)
         self.lp_model = self.mip_model.relax()
         self.eps = 10**(-6)
-        self.model_sense = self.mip_model.ModelSense
+        self.feas_solution = feas_solution
+        self.model_sense, self.A = self.mip_model.ModelSense, coo_matrix(self.mip_model.getA())
+
+    def get_active_var(self):
+        return random.sample(self.int_var, 1)[0]
+
+    def interrelated_vars(self, A, idx):
+        interelated_rows = A.row[np.where(A.col==idx)[0]]
+        interelated_cols = []
+        for row in interelated_rows:
+            t = list(A.col[np.where(A.row == row)[0]])
+            interelated_cols.extend(t)
+        interelated_cols = list(set(interelated_cols))    
+        return interelated_cols
     
-    def get_optim_var(self):
-        return random.choice(self.int_var, 1)
+    def add_constrs_fixed(self, optimized_vars):
+        v = self.fixed_model.getVars()
+        self.fixed_model.addConstrs((v[i] == self.feas_solution[i]) for i in self.int_var if i not in optimized_vars)
     
-    def get_neighood(self):
+    def update_fixed(self, optimized_vars):
+        v = self.fixed_model.getVars()
+        for idx in optimized_vars:
+            self.feas_solution[idx] = v[idx].x 
+    
+    def run(self, MAX_ITER, timelimit):
+        self.iter, ts = 0, datetime.datetime.now()
+
+        while self.iter <= MAX_ITER:
+            idx = self.get_active_var()
+            self.optimized_vars = self.interrelated_vars(self.A, idx)
+            self.fixed_model = self.mip_model.copy()
+            self.add_constrs_fixed(self.optimized_vars)
+            self.fixed_model.Params.TIME_LIMIT = timelimit
+            self.fixed_model.optimize()
+            self.update_fixed(self.optimized_vars)
+            self.iter += 1
+        cpu_time = (datetime.datetime.now() - ts).seconds
+        return self.fixed_model.ObjVal, cpu_time 
+        
+    def write_model(self):
+        self.mip_model.write("./model/{}".format())
+
+class RINS():
+    def __init__(self) -> None:
         pass
+
+    
+
+        
 

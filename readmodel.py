@@ -20,3 +20,6 @@ class ModelData:
             self.model.append(self.m)
         self.read_file = [f.replace(".mps","") for f in self.read_file]
         return self.model, self.read_file
+    
+    def read_model(self, file_name):
+        return gp.read(BENCHMARK_PATH + file_name)
